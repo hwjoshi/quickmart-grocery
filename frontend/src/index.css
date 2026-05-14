@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: add some base padding for better mobile view */
+body {
+  @apply bg-gray-50;
+}
