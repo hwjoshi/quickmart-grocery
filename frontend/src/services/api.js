@@ -49,3 +49,49 @@ export const placeOrder = async (orderData) => {
   }
   return response.json();
 };
+// Add these exports to your existing api.js
+
+export const getUserProfile = async () => {
+  const response = await fetch(`${API_BASE_URL}/user/profile`, {
+    headers: getAuthHeader()
+  });
+  if (!response.ok) throw new Error('Failed to fetch profile');
+  return response.json();
+};
+
+export const updateUserProfile = async (profileData) => {
+  const response = await fetch(`${API_BASE_URL}/user/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader()
+    },
+    body: JSON.stringify(profileData)
+  });
+  if (!response.ok) throw new Error('Failed to update profile');
+  return response.json();
+};
+
+export const getUserOrders = async () => {
+  const response = await fetch(`${API_BASE_URL}/user/orders`, {
+    headers: getAuthHeader()
+  });
+  if (!response.ok) throw new Error('Failed to fetch orders');
+  return response.json();
+};
+
+export const changePassword = async (passwordData) => {
+  const response = await fetch(`${API_BASE_URL}/user/password`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader()
+    },
+    body: JSON.stringify(passwordData)
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Password change failed');
+  }
+  return response.json();
+};

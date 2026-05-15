@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import SocialLoginButtons from '../components/SocialLoginButtons';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -40,6 +41,9 @@ export default function Login() {
           Login
         </button>
       </form>
+
+      <SocialLoginButtons />
+
       <p className="text-center mt-4">
         Don't have an account? <Link to="/signup" className="text-green-600">Sign up</Link>
       </p>

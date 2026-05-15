@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import SocialLoginButtons from '../components/SocialLoginButtons';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -71,6 +72,9 @@ export default function Signup() {
           Sign Up
         </button>
       </form>
+
+      <SocialLoginButtons />
+
       <p className="text-center mt-4">
         Already have an account? <Link to="/login" className="text-green-600">Login</Link>
       </p>
