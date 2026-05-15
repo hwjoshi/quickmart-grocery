@@ -1,7 +1,10 @@
-// Base URL – uses Vite's environment variable (set in Vercel)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-// Fetch all products with variants
+const getAuthHeader = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 export const fetchProducts = async () => {
   try {
     const [productsRes, variantsRes] = await Promise.all([
@@ -10,10 +13,8 @@ export const fetchProducts = async () => {
     ]);
     if (!productsRes.ok) throw new Error('Failed to fetch products');
     if (!variantsRes.ok) throw new Error('Failed to fetch variants');
-    
     const products = await productsRes.json();
     const variants = await variantsRes.json();
-    
     const productsWithVariants = products.map(product => ({
       ...product,
       variants: variants
@@ -26,7 +27,6 @@ export const fetchProducts = async () => {
         }))
         .sort((a, b) => a.weight - b.weight)
     }));
-    
     return productsWithVariants;
   } catch (error) {
     console.error('API Error:', error);
@@ -34,11 +34,13 @@ export const fetchProducts = async () => {
   }
 };
 
-// Place order
 export const placeOrder = async (orderData) => {
   const response = await fetch(`${API_BASE_URL}/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader()
+    },
     body: JSON.stringify(orderData),
   });
   if (!response.ok) {

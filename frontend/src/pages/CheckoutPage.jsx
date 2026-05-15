@@ -1,19 +1,24 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { placeOrder } from "../services/api";
 import DeliverySlotPicker from "../components/DeliverySlotPicker";
 import SubstitutionPreference from "../components/SubstitutionPreference";
 
 export default function CheckoutPage() {
   const { cartItems, getCartTotal, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [address, setAddress] = useState("");
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [subPref, setSubPref] = useState("similar");
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [loading, setLoading] = useState(false);
+
+  // Protect page: redirect to login if not authenticated
+  if (!user) return <Navigate to="/login" replace />;
 
   const handlePlaceOrder = async () => {
     if (!address) {
@@ -29,7 +34,6 @@ export default function CheckoutPage() {
     }));
 
     const orderPayload = {
-      user_id: null,
       payment_method: paymentMethod,
       address: address,
       substitution_preference: subPref,
