@@ -95,25 +95,47 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ========== OAuth Routes ==========
+// Google OAuth
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL}/login` }),
   (req, res) => {
-    const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
+    if (!req.user) {
+      console.error('No user from Google');
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+    }
+    try {
+      const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
+    } catch (err) {
+      console.error('JWT sign error:', err);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=token_failed`);
+    }
   }
 );
 
+// Facebook OAuth
 app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+
 app.get('/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: `${process.env.FRONTEND_URL}/login` }),
   (req, res) => {
-    const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
+    if (!req.user) {
+      console.error('No user from Facebook');
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+    }
+    try {
+      const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
+    } catch (err) {
+      console.error('JWT sign error:', err);
+      res.redirect(`${process.env.FRONTEND_URL}/login?error=token_failed`);
+    }
   }
 );
 
-// ========== PROTECTED USER ROUTES (require auth) ==========
+// ========== PROTECTED USER ROUTES ==========
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'No token provided' });
@@ -141,7 +163,7 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Update profile (name, phone, address)
+// Update profile
 app.put('/api/user/profile', authMiddleware, async (req, res) => {
   const { name, phone, address } = req.body;
   try {

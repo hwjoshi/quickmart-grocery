@@ -4,14 +4,20 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const db = require('../db');
 
 passport.serializeUser((user, done) => {
+  console.log('Serializing user:', user.id);
   done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
     const result = await db.query('SELECT id, name, email, avatar_url FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return done(new Error('User not found'));
+    }
+    console.log('Deserialized user:', result.rows[0].id);
     done(null, result.rows[0]);
   } catch (err) {
+    console.error('Deserialize error:', err);
     done(err);
   }
 });
@@ -47,7 +53,7 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-// Facebook Strategy (with email scope)
+// Facebook Strategy
 passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
@@ -59,14 +65,7 @@ passport.use(new FacebookStrategy({
       let user = await db.query('SELECT * FROM users WHERE facebook_id = $1', [profile.id]);
       if (user.rows.length) return done(null, user.rows[0]);
 
-      let email = null;
-      if (profile.emails && profile.emails.length > 0) {
-        email = profile.emails[0].value;
-      } else {
-        // Fallback: create a unique email based on facebook id
-        email = `${profile.id}@facebook.user`;
-      }
-
+      let email = profile.emails?.[0]?.value || `${profile.id}@facebook.user`;
       user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       if (user.rows.length) {
         await db.query('UPDATE users SET facebook_id = $1 WHERE id = $2', [profile.id, user.rows[0].id]);
