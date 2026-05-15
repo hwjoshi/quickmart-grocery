@@ -23,8 +23,12 @@ export default function OAuthRedirect() {
         })
         .then(userData => {
           console.log('User data fetched:', userData);
-          setUser(userData);
-          navigate('/');
+          if (userData && typeof userData === 'object') {
+            setUser(userData);
+            navigate('/');
+          } else {
+            throw new Error('Invalid user data');
+          }
         })
         .catch(err => {
           console.error('OAuth fetch user error:', err);
