@@ -13,7 +13,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import OAuthRedirect from "./pages/OAuthRedirect";
 import ProfilePage from "./pages/ProfilePage";
-import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboard from "./pages/AdminDashboard";
 
 function App() {
   return (
@@ -33,8 +33,7 @@ function App() {
                 <Route path="/signup" element={<Signup />} />
                 <Route path="/oauth-redirect" element={<OAuthRedirect />} />
                 <Route path="/profile" element={<ProfilePage />} />
-// inside <Routes>:
-<Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin" element={<AdminDashboard />} />
               </Routes>
             </main>
             <Footer />
