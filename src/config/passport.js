@@ -24,11 +24,9 @@ passport.use(new GoogleStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      // Check if user exists with google_id
       let user = await db.query('SELECT * FROM users WHERE google_id = $1', [profile.id]);
       if (user.rows.length) return done(null, user.rows[0]);
 
-      // Check if email exists (link accounts)
       const email = profile.emails[0].value;
       user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       if (user.rows.length) {
@@ -36,7 +34,6 @@ passport.use(new GoogleStrategy({
         return done(null, user.rows[0]);
       }
 
-      // Create new user
       const result = await db.query(
         `INSERT INTO users (name, email, google_id, avatar_url, role)
          VALUES ($1, $2, $3, $4, 'customer') RETURNING *`,
@@ -44,12 +41,13 @@ passport.use(new GoogleStrategy({
       );
       return done(null, result.rows[0]);
     } catch (err) {
+      console.error('Google OAuth error:', err);
       return done(err);
     }
   }
 ));
 
-// Facebook Strategy
+// Facebook Strategy (with email scope)
 passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
@@ -61,7 +59,14 @@ passport.use(new FacebookStrategy({
       let user = await db.query('SELECT * FROM users WHERE facebook_id = $1', [profile.id]);
       if (user.rows.length) return done(null, user.rows[0]);
 
-      const email = profile.emails?.[0]?.value || `${profile.id}@facebook.local`;
+      let email = null;
+      if (profile.emails && profile.emails.length > 0) {
+        email = profile.emails[0].value;
+      } else {
+        // Fallback: create a unique email based on facebook id
+        email = `${profile.id}@facebook.user`;
+      }
+
       user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
       if (user.rows.length) {
         await db.query('UPDATE users SET facebook_id = $1 WHERE id = $2', [profile.id, user.rows[0].id]);
@@ -75,6 +80,7 @@ passport.use(new FacebookStrategy({
       );
       return done(null, result.rows[0]);
     } catch (err) {
+      console.error('Facebook OAuth error:', err);
       return done(err);
     }
   }
