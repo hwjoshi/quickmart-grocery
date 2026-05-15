@@ -31,6 +31,9 @@ export default function Navbar() {
               {isUserMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10 border">
                   <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">My Profile</Link>
+                  {user.role === 'admin' && (
+                    <Link to="/admin" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Admin Dashboard</Link>
+                  )}
                   <button onClick={logout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Logout</button>
                 </div>
               )}
@@ -54,6 +57,9 @@ export default function Navbar() {
           {user ? (
             <>
               <Link to="/profile" onClick={() => setIsMenuOpen(false)}>My Profile</Link>
+              {user.role === 'admin' && (
+                <Link to="/admin" onClick={() => setIsMenuOpen(false)}>Admin Dashboard</Link>
+              )}
               <button onClick={() => { logout(); setIsMenuOpen(false); }} className="text-left text-red-600">Logout</button>
             </>
           ) : (

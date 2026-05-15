@@ -261,6 +261,210 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
     client.release();
   }
 });
+// ========== ADMIN ROUTES (require admin role) ==========
+const adminMiddleware = require('./src/middleware/admin');
 
+// ---------- Products ----------
+app.get('/api/admin/products', adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, json_agg(json_build_object('id', v.id, 'weight_grams', v.weight_grams, 'price', v.price, 'sku', v.sku)) as variants
+      FROM products p
+      LEFT JOIN variants v ON p.id = v.product_id
+      GROUP BY p.id
+      ORDER BY p.id
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/products', adminMiddleware, async (req, res) => {
+  const { name, description, category, image_url, is_perishable } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO products (name, description, category, image_url, is_perishable) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, description, category, image_url, is_perishable]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/products/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { name, description, category, image_url, is_perishable } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE products SET name=$1, description=$2, category=$3, image_url=$4, is_perishable=$5 WHERE id=$6 RETURNING *',
+      [name, description, category, image_url, is_perishable, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/products/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM products WHERE id=$1', [id]);
+    res.json({ message: 'Product deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Variants ----------
+app.post('/api/admin/variants', adminMiddleware, async (req, res) => {
+  const { product_id, weight_grams, price, sku } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO variants (product_id, weight_grams, price, sku) VALUES ($1, $2, $3, $4) RETURNING *',
+      [product_id, weight_grams, price, sku]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/variants/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { weight_grams, price, sku } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE variants SET weight_grams=$1, price=$2, sku=$3 WHERE id=$4 RETURNING *',
+      [weight_grams, price, sku, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/variants/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM variants WHERE id=$1', [id]);
+    res.json({ message: 'Variant deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Inventory (batches) ----------
+app.get('/api/admin/inventory', adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ib.*, v.product_id, p.name as product_name, v.weight_grams
+      FROM inventory_batches ib
+      JOIN variants v ON ib.variant_id = v.id
+      JOIN products p ON v.product_id = p.id
+      ORDER BY ib.expiry_date
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/inventory', adminMiddleware, async (req, res) => {
+  const { variant_id, quantity_grams, expiry_date } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO inventory_batches (variant_id, quantity_grams, expiry_date) VALUES ($1, $2, $3) RETURNING *',
+      [variant_id, quantity_grams, expiry_date]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/inventory/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM inventory_batches WHERE id=$1', [id]);
+    res.json({ message: 'Batch deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Orders ----------
+app.get('/api/admin/orders', adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT o.*, u.name as user_name, u.email
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      ORDER BY o.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/orders/:id/status', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  try {
+    await pool.query('UPDATE orders SET status=$1 WHERE id=$2', [status, id]);
+    res.json({ message: 'Order status updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ---------- Delivery Slots ----------
+app.get('/api/admin/slots', adminMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM delivery_slots ORDER BY slot_date, start_time');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/admin/slots', adminMiddleware, async (req, res) => {
+  const { slot_date, start_time, end_time, capacity } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO delivery_slots (slot_date, start_time, end_time, capacity) VALUES ($1, $2, $3, $4) RETURNING *',
+      [slot_date, start_time, end_time, capacity]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/slots/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const { slot_date, start_time, end_time, capacity, booked } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE delivery_slots SET slot_date=$1, start_time=$2, end_time=$3, capacity=$4, booked=$5 WHERE id=$6 RETURNING *',
+      [slot_date, start_time, end_time, capacity, booked, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/admin/slots/:id', adminMiddleware, async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM delivery_slots WHERE id=$1', [id]);
+    res.json({ message: 'Slot deleted' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
