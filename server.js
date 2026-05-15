@@ -66,7 +66,7 @@ app.post('/api/auth/register', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (name, email, password_hash, phone, address, role)
-       VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING id, name, email`,
+       VALUES ($1, $2, $3, $4, $5, 'customer') RETURNING id, name, email, role`,
       [name, email, hashed, phone || null, address || null]
     );
     const user = result.rows[0];
@@ -82,13 +82,13 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
-    const result = await pool.query('SELECT id, name, email, password_hash FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id, name, email, password_hash, role FROM users WHERE email = $1', [email]);
     if (!result.rows.length) return res.status(401).json({ error: 'Invalid credentials' });
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -147,11 +147,11 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Get current user profile (used by frontend)
+// Get current user info (includes role)
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, email, phone, address, avatar_url, created_at FROM users WHERE id = $1',
+      'SELECT id, name, email, phone, address, avatar_url, role, created_at FROM users WHERE id = $1',
       [req.userId]
     );
     if (result.rows.length === 0) {
@@ -261,10 +261,11 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
     client.release();
   }
 });
+
 // ========== ADMIN ROUTES (require admin role) ==========
 const adminMiddleware = require('./src/middleware/admin');
 
-// ---------- Products ----------
+// Products
 app.get('/api/admin/products', adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -317,7 +318,7 @@ app.delete('/api/admin/products/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// ---------- Variants ----------
+// Variants
 app.post('/api/admin/variants', adminMiddleware, async (req, res) => {
   const { product_id, weight_grams, price, sku } = req.body;
   try {
@@ -355,7 +356,7 @@ app.delete('/api/admin/variants/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// ---------- Inventory (batches) ----------
+// Inventory
 app.get('/api/admin/inventory', adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -394,7 +395,7 @@ app.delete('/api/admin/inventory/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// ---------- Orders ----------
+// Orders
 app.get('/api/admin/orders', adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -420,7 +421,7 @@ app.put('/api/admin/orders/:id/status', adminMiddleware, async (req, res) => {
   }
 });
 
-// ---------- Delivery Slots ----------
+// Delivery Slots
 app.get('/api/admin/slots', adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM delivery_slots ORDER BY slot_date, start_time');
@@ -466,5 +467,6 @@ app.delete('/api/admin/slots/:id', adminMiddleware, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
