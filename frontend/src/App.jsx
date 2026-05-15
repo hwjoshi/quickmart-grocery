@@ -11,10 +11,8 @@ import CheckoutPage from "./pages/CheckoutPage";
 import OrderTrackingPage from "./pages/OrderTrackingPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-// Add imports
-import OAuthRedirect from './pages/OAuthRedirect';
-import ProfilePage from './pages/ProfilePage';
-
+import OAuthRedirect from "./pages/OAuthRedirect";
+import ProfilePage from "./pages/ProfilePage";
 
 function App() {
   return (
@@ -32,9 +30,8 @@ function App() {
                 <Route path="/order-tracking/:orderId" element={<OrderTrackingPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<Signup />} />
-// Inside <Routes>, add:
-<Route path="/oauth-redirect" element={<OAuthRedirect />} />
-<Route path="/profile" element={<ProfilePage />} />
+                <Route path="/oauth-redirect" element={<OAuthRedirect />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Routes>
             </main>
             <Footer />
