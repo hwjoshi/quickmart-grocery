@@ -268,15 +268,15 @@ const adminMiddleware = require('./src/middleware/admin');
 // Products
 app.get('/api/admin/products', adminMiddleware, async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT p.*, json_agg(json_build_object('id', v.id, 'weight_grams', v.weight_grams, 'price', v.price, 'sku', v.sku)) as variants
-      FROM products p
-      LEFT JOIN variants v ON p.id = v.product_id
-      GROUP BY p.id
-      ORDER BY p.id
-    `);
-    res.json(result.rows);
+    const products = await pool.query('SELECT * FROM products ORDER BY id');
+    const variants = await pool.query('SELECT * FROM variants ORDER BY product_id, id');
+    const productsWithVariants = products.rows.map(product => ({
+      ...product,
+      variants: variants.rows.filter(v => v.product_id === product.id)
+    }));
+    res.json(productsWithVariants);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });

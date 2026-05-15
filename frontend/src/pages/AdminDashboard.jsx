@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [editingVariant, setEditingVariant] = useState(null);
   const [showProductForm, setShowProductForm] = useState(false);
@@ -28,14 +29,7 @@ export default function AdminDashboard() {
   const [showSlotForm, setShowSlotForm] = useState(false);
   const [editingSlot, setEditingSlot] = useState(null);
 
-  // Redirect if not admin
-  if (user?.role !== 'admin') return <Navigate to="/" replace />;
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [productsRes, inventoryRes, ordersRes, slotsRes] = await Promise.all([
@@ -49,13 +43,31 @@ export default function AdminDashboard() {
       setOrders(ordersRes);
       setSlots(slotsRes);
     } catch (err) {
-      toast.error('Failed to load data');
+      console.error(err);
+      toast.error('Failed to load data: ' + err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
-  // Product handlers
+  if (user?.role !== 'admin') return <Navigate to="/" replace />;
+
+  // Product handlers (unchanged)
   const handleCreateProduct = async () => {
     try {
       const newProduct = await createProduct(productForm);
@@ -93,7 +105,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Variant handlers
   const handleCreateVariant = async () => {
     try {
       const newVariant = await createVariant(variantForm);
@@ -121,7 +132,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Inventory handlers
   const handleAddInventory = async (variantId) => {
     const qty = prompt('Enter quantity in grams:');
     if (!qty) return;
@@ -149,7 +159,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Order handlers
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
       await updateOrderStatus(orderId, newStatus);
@@ -160,7 +169,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Delivery slot handlers
   const handleCreateSlot = async () => {
     try {
       const newSlot = await createSlot(slotForm);
@@ -198,11 +206,20 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) return <div className="text-center py-10">Loading dashboard...</div>;
+  if (loading && !refreshing) return <div className="text-center py-10">Loading dashboard...</div>;
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <button
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+        >
+          {refreshing ? 'Refreshing...' : 'Refresh Data'}
+        </button>
+      </div>
       <div className="border-b border-gray-200 mb-6">
         <nav className="flex space-x-8">
           {['products', 'inventory', 'orders', 'slots'].map(tab => (
@@ -242,6 +259,7 @@ export default function AdminDashboard() {
             </div>
           )}
           <div className="space-y-6">
+            {products.length === 0 && <p>No products found. Click + New Product to create one.</p>}
             {products.map(product => (
               <div key={product.id} className="border rounded p-4">
                 <div className="flex justify-between">
@@ -261,7 +279,6 @@ export default function AdminDashboard() {
                     {product.variants?.map(v => (
                       <div key={v.id} className="bg-gray-100 rounded px-2 py-1 text-sm flex items-center gap-2">
                         {v.weight_grams}g - ₹{v.price}
-                        <button onClick={() => { setVariantForm({ product_id: product.id, weight_grams: v.weight_grams, price: v.price, sku: v.sku }); setEditingVariant(v); setShowVariantForm(true); }} className="text-blue-500 text-xs">Edit</button>
                         <button onClick={() => handleDeleteVariant(v.id)} className="text-red-500 text-xs">X</button>
                       </div>
                     ))}
@@ -286,7 +303,7 @@ export default function AdminDashboard() {
                 <input placeholder="Price (₹)" type="number" value={variantForm.price} onChange={e => setVariantForm({...variantForm, price: e.target.value})} className="w-full border p-2 mb-2" />
                 <input placeholder="SKU" value={variantForm.sku} onChange={e => setVariantForm({...variantForm, sku: e.target.value})} className="w-full border p-2 mb-2" />
                 <div className="flex gap-2">
-                  <button onClick={editingVariant ? handleUpdateVariant : handleCreateVariant} className="bg-green-600 text-white px-4 py-2 rounded">Save</button>
+                  <button onClick={handleCreateVariant} className="bg-green-600 text-white px-4 py-2 rounded">Save</button>
                   <button onClick={() => { setShowVariantForm(false); setEditingVariant(null); }} className="bg-gray-300 px-4 py-2 rounded">Cancel</button>
                 </div>
               </div>
@@ -302,7 +319,7 @@ export default function AdminDashboard() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-2">Product</th><th>Variant</th><th>Quantity (g)</th><th>Expiry</th><th>Actions</th>
-              </tr>
+               </tr>
             </thead>
             <tbody>
               {inventory.map(batch => (
@@ -326,7 +343,7 @@ export default function AdminDashboard() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-2">Order ID</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th><th>Action</th>
-              </tr>
+               </tr>
             </thead>
             <tbody>
               {orders.map(order => (
@@ -378,7 +395,7 @@ export default function AdminDashboard() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-2">Date</th><th>Start</th><th>End</th><th>Capacity</th><th>Booked</th><th>Actions</th>
-              </tr>
+               </tr>
             </thead>
             <tbody>
               {slots.map(slot => (
