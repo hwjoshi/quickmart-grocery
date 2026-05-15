@@ -11,12 +11,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Session middleware (required for Passport)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-session-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false } // set to true if using https
+  cookie: { secure: false }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -53,16 +52,13 @@ app.get('/api/variants', async (req, res) => {
   }
 });
 
-// ========== AUTH ROUTES (Email/Password) ==========
+// ========== AUTH ROUTES ==========
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, phone, address } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email and password required' });
-  }
+  if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password required' });
   try {
     const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length) return res.status(400).json({ error: 'Email already registered' });
-
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (name, email, password_hash, phone, address, role)
@@ -94,42 +90,24 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ========== OAuth Routes ==========
+// ========== OAuth ROUTES ==========
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: `${process.env.FRONTEND_URL}/login` }),
   (req, res) => {
-    if (!req.user) {
-      console.error('No user from Google');
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
-    }
-    try {
-      const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
-    } catch (err) {
-      console.error('JWT sign error:', err);
-      res.redirect(`${process.env.FRONTEND_URL}/login?error=token_failed`);
-    }
+    if (!req.user) return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+    const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
   }
 );
 
 app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
 app.get('/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: `${process.env.FRONTEND_URL}/login` }),
   (req, res) => {
-    if (!req.user) {
-      console.error('No user from Facebook');
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
-    }
-    try {
-      const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-      res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
-    } catch (err) {
-      console.error('JWT sign error:', err);
-      res.redirect(`${process.env.FRONTEND_URL}/login?error=token_failed`);
-    }
+    if (!req.user) return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+    const token = jwt.sign({ userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.redirect(`${process.env.FRONTEND_URL}/oauth-redirect?token=${token}`);
   }
 );
 
@@ -147,29 +125,22 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Get current user info (includes role)
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT id, name, email, phone, address, avatar_url, role, created_at FROM users WHERE id = $1',
       [req.userId]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.get('/api/user/profile', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT id, name, email, phone, address, avatar_url, created_at FROM users WHERE id = $1',
-      [req.userId]
-    );
+    const result = await pool.query('SELECT id, name, email, phone, address, avatar_url FROM users WHERE id = $1', [req.userId]);
     if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(result.rows[0]);
   } catch (err) {
@@ -180,10 +151,7 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
 app.put('/api/user/profile', authMiddleware, async (req, res) => {
   const { name, phone, address } = req.body;
   try {
-    await pool.query(
-      'UPDATE users SET name = $1, phone = $2, address = $3 WHERE id = $4',
-      [name, phone, address, req.userId]
-    );
+    await pool.query('UPDATE users SET name = $1, phone = $2, address = $3 WHERE id = $4', [name, phone, address, req.userId]);
     res.json({ message: 'Profile updated' });
   } catch (err) {
     res.status(500).json({ error: 'Update failed' });
@@ -196,7 +164,7 @@ app.put('/api/user/password', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.userId]);
     const user = result.rows[0];
-    if (!user.password_hash) return res.status(400).json({ error: 'No password set (social login user). Use "Forgot password" feature.' });
+    if (!user.password_hash) return res.status(400).json({ error: 'No password set for social login user' });
     const valid = await bcrypt.compare(currentPassword, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -211,12 +179,7 @@ app.get('/api/user/orders', authMiddleware, async (req, res) => {
   try {
     const orders = await pool.query(`
       SELECT o.id, o.total_amount, o.status, o.created_at,
-             json_agg(json_build_object(
-               'product_name', p.name,
-               'quantity', oi.quantity,
-               'weight', oi.ordered_weight_grams,
-               'price', oi.unit_price
-             )) as items
+             json_agg(json_build_object('product_name', p.name, 'quantity', oi.quantity, 'weight', oi.ordered_weight_grams, 'price', oi.unit_price)) as items
       FROM orders o
       JOIN order_items oi ON o.id = oi.order_id
       JOIN variants v ON oi.variant_id = v.id
@@ -232,18 +195,25 @@ app.get('/api/user/orders', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== ORDER PLACEMENT (with delivery slot increment) ==========
 app.post('/api/orders', authMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { payment_method, address, substitution_preference, total_amount, items } = req.body;
+    const { payment_method, address, substitution_preference, total_amount, items, delivery_slot_id } = req.body;
     const userId = req.userId;
+
     const orderResult = await client.query(
-      `INSERT INTO orders (user_id, payment_method, address, substitution_preference, total_amount, status)
-       VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING id`,
-      [userId, payment_method, address, substitution_preference, total_amount]
+      `INSERT INTO orders (user_id, payment_method, address, substitution_preference, total_amount, status, delivery_slot_id)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6) RETURNING id`,
+      [userId, payment_method, address, substitution_preference, total_amount, delivery_slot_id || null]
     );
     const orderId = orderResult.rows[0].id;
+
+    if (delivery_slot_id) {
+      await client.query(`UPDATE delivery_slots SET booked = booked + 1 WHERE id = $1`, [delivery_slot_id]);
+    }
+
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (order_id, variant_id, ordered_weight_grams, unit_price, quantity)
@@ -251,6 +221,7 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
         [orderId, item.variant_id, item.weight_grams, item.price, item.quantity]
       );
     }
+
     await client.query('COMMIT');
     res.status(201).json({ orderId, message: 'Order placed' });
   } catch (err) {
@@ -262,10 +233,10 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
   }
 });
 
-// ========== ADMIN ROUTES (require admin role) ==========
+// ========== ADMIN ROUTES ==========
 const adminMiddleware = require('./src/middleware/admin');
 
-// Products
+// Products – simplified, no json_agg
 app.get('/api/admin/products', adminMiddleware, async (req, res) => {
   try {
     const products = await pool.query('SELECT * FROM products ORDER BY id');
@@ -368,6 +339,7 @@ app.get('/api/admin/inventory', adminMiddleware, async (req, res) => {
     `);
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -395,7 +367,7 @@ app.delete('/api/admin/inventory/:id', adminMiddleware, async (req, res) => {
   }
 });
 
-// Orders
+// Orders (admin)
 app.get('/api/admin/orders', adminMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`

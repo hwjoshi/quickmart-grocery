@@ -17,7 +17,6 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState("cod");
   const [loading, setLoading] = useState(false);
 
-  // Protect page: redirect to login if not authenticated
   if (!user) return <Navigate to="/login" replace />;
 
   const handlePlaceOrder = async () => {
@@ -38,7 +37,8 @@ export default function CheckoutPage() {
       address: address,
       substitution_preference: subPref,
       total_amount: getCartTotal(),
-      items: orderItems
+      items: orderItems,
+      delivery_slot_id: selectedSlot ? selectedSlot.id : null
     };
 
     setLoading(true);
