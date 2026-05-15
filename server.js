@@ -95,7 +95,6 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ========== OAuth Routes ==========
-// Google OAuth
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback',
@@ -115,7 +114,6 @@ app.get('/auth/google/callback',
   }
 );
 
-// Facebook OAuth
 app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 
 app.get('/auth/facebook/callback',
@@ -149,7 +147,23 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// Get current user profile
+// Get current user profile (used by frontend)
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, name, email, phone, address, avatar_url, created_at FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/api/user/profile', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
@@ -163,7 +177,6 @@ app.get('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Update profile
 app.put('/api/user/profile', authMiddleware, async (req, res) => {
   const { name, phone, address } = req.body;
   try {
@@ -177,7 +190,6 @@ app.put('/api/user/profile', authMiddleware, async (req, res) => {
   }
 });
 
-// Change password
 app.put('/api/user/password', authMiddleware, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
@@ -195,7 +207,6 @@ app.put('/api/user/password', authMiddleware, async (req, res) => {
   }
 });
 
-// Get order history
 app.get('/api/user/orders', authMiddleware, async (req, res) => {
   try {
     const orders = await pool.query(`
@@ -221,7 +232,6 @@ app.get('/api/user/orders', authMiddleware, async (req, res) => {
   }
 });
 
-// Place order (protected)
 app.post('/api/orders', authMiddleware, async (req, res) => {
   const client = await pool.connect();
   try {
