@@ -7,10 +7,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Database connection – uses Railway's DATABASE_URL environment variable
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // Required for Railway PostgreSQL
+  ssl: { rejectUnauthorized: false }
 });
 
 // Health check
@@ -46,22 +45,12 @@ app.get('/api/variants', async (req, res) => {
   }
 });
 
-// POST /api/orders – create a new order (no delivery_slot_id)
+// POST /api/orders
 app.post('/api/orders', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const {
-      user_id,
-      payment_method,
-      address,
-      substitution_preference,
-      total_amount,
-      items
-    } = req.body;
-
-    // Insert order
+    const { user_id, payment_method, address, substitution_preference, total_amount, items } = req.body;
     const orderResult = await client.query(
       `INSERT INTO orders (user_id, payment_method, address, substitution_preference, total_amount, status)
        VALUES ($1, $2, $3, $4, $5, 'pending')
@@ -69,8 +58,6 @@ app.post('/api/orders', async (req, res) => {
       [user_id || null, payment_method, address, substitution_preference, total_amount]
     );
     const orderId = orderResult.rows[0].id;
-
-    // Insert order items
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (order_id, variant_id, ordered_weight_grams, unit_price, quantity)
@@ -78,7 +65,6 @@ app.post('/api/orders', async (req, res) => {
         [orderId, item.variant_id, item.weight_grams, item.price, item.quantity]
       );
     }
-
     await client.query('COMMIT');
     res.status(201).json({ orderId, message: 'Order placed successfully' });
   } catch (err) {
